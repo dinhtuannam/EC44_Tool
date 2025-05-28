@@ -1,0 +1,185 @@
+﻿@{
+    ViewData["Title"] = "File Comparison Tool";
+}
+
+<div class="container-fluid mt-4">
+    <!-- Thiết lập Section -->
+    <div class="card shadow mb-4">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center" style="cursor: pointer;" id="setupHeader">
+            <h5 class="mb-0">Thiết lập</h5>
+            <i class="fas fa-chevron-down" id="setupToggle"></i>
+        </div>
+        <div class="card-body" id="setupBody">
+            <form id="setupForm">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="oraclePath" class="form-label">Đường dẫn Oracle</label>
+                            <input type="text" class="form-control" id="oraclePath" name="oraclePath" placeholder="Nhập đường dẫn folder Oracle">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="postgresPath" class="form-label">Đường dẫn Postgres</label>
+                            <input type="text" class="form-control" id="postgresPath" name="postgresPath" placeholder="Nhập đường dẫn folder Postgres">
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="imagePath" class="form-label">Đường dẫn hình ảnh</label>
+                            <input type="text" class="form-control" id="imagePath" name="imagePath" placeholder="Nhập đường dẫn folder hình ảnh">
+                        </div>
+                    </div>
+                     <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="nameList" class="form-label">Danh sách tên file</label>
+                            <textarea class="form-control" id="nameList" name="nameList" rows="3" placeholder="Nhập danh sách tên file, mỗi tên một dòng"></textarea>
+                        </div>
+                    </div>
+                </div>
+                 <div class="row align-items-center">
+                    <div class="col-md-4 offset-md-4">
+                         <div class="mb-3">
+                            <label for="filter" class="form-label">Lọc theo trạng thái</label>
+                            <select class="form-select" id="filter" name="filter">
+                                <option value="">Tất cả</option>
+                                <option value="Đã làm">Đã làm</option>
+                                <option value="Chưa làm">Chưa làm</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="button" class="btn btn-primary w-100" id="showFilesButton">Hiển thị</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Danh sách file Section -->
+    <div class="card shadow">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">Danh sách file</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="fileTable">
+                    <thead>
+                        <tr>
+                            <th>Tên file</th>
+                            <th>Trạng thái</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        function toggleSetup() {
+            const setupBody = $('#setupBody');
+            const toggleIcon = $('#setupToggle');
+            
+            setupBody.slideToggle(300);
+            toggleIcon.toggleClass('fa-chevron-down fa-chevron-up');
+        }
+
+        function saveSettings() {
+            localStorage.setItem('oraclePath', $('#oraclePath').val());
+            localStorage.setItem('postgresPath', $('#postgresPath').val());
+            localStorage.setItem('imagePath', $('#imagePath').val());
+            localStorage.setItem('nameList', $('#nameList').val());
+            localStorage.setItem('filter', $('#filter').val());
+        }
+
+        function loadSettings() {
+            const savedOraclePath = localStorage.getItem('oraclePath');
+            const savedPostgresPath = localStorage.getItem('postgresPath');
+            const savedImagePath = localStorage.getItem('imagePath');
+            const savedNameList = localStorage.getItem('nameList');
+            const savedFilter = localStorage.getItem('filter');
+
+            if (savedOraclePath) {
+                $('#oraclePath').val(savedOraclePath);
+            }
+            if (savedPostgresPath) {
+                $('#postgresPath').val(savedPostgresPath);
+            }
+             if (savedImagePath) {
+                $('#imagePath').val(savedImagePath);
+            }
+            if (savedNameList) {
+                $('#nameList').val(savedNameList);
+            }
+            if (savedFilter) {
+                $('#filter').val(savedFilter);
+            }
+        }
+
+        function showFiles() {
+            const oraclePath = $('#oraclePath').val();
+            const postgresPath = $('#postgresPath').val();
+            const nameList = $('#nameList').val();
+            const filter = $('#filter').val();
+
+            // Save settings before making the AJAX call
+            saveSettings();
+
+            $.ajax({
+                url: '@Url.Action("GetFileList")',
+                type: 'POST',
+                data: {
+                    oraclePath: oraclePath,
+                    postgresPath: postgresPath,
+                    nameList: nameList,
+                    filter: filter
+                },
+                success: function(response) {
+                    if (response.success) {
+                        const tbody = $('#fileTable tbody');
+                        tbody.empty();
+                        
+                        if (response.data && response.data.length > 0) {
+                             response.data.forEach(function(file) {
+                                const statusClass = file.status === 'Đã làm' ? 'text-success' : 'text-danger';
+                                tbody.append(`
+                                    <tr>
+                                        <td>${file.fileName}</td>
+                                        <td class="${statusClass}">${file.status}</td>
+                                    </tr>
+                                `);
+                            });
+                        } else {
+                             tbody.append(`
+                                <tr>
+                                    <td colspan="2" class="text-center">Không tìm thấy file nào phù hợp.</td>
+                                </tr>
+                            `);
+                        }
+
+                    } else {
+                        alert(response.message);
+                    }
+                },
+                error: function() {
+                    alert('Có lỗi xảy ra khi xử lý yêu cầu');
+                }
+            });
+        }
+
+        $(document).ready(function() {
+            // Load settings on page load
+            loadSettings();
+
+            // Attach event listeners
+            $('#setupHeader').on('click', toggleSetup);
+            $('#showFilesButton').on('click', showFiles);
+        });
+    </script>
+}
