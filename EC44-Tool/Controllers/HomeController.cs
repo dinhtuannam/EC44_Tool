@@ -101,6 +101,57 @@ namespace EC44_Tool.Controllers
             return match.Success ? match.Groups[1].Value : Path.GetFileNameWithoutExtension(fileName);
         }
 
+        [HttpGet]
+        public IActionResult GetFileContent(string filePath)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(filePath) || !System.IO.File.Exists(filePath))
+                {
+                    return Json(new { success = false, message = "Đường dẫn file không hợp lệ hoặc file không tồn tại." });
+                }
+
+                // Read the file content, specifically handling UTF-8 for Japanese characters
+                string fileContent = System.IO.File.ReadAllText(filePath, System.Text.Encoding.UTF8);
+
+                return Json(new { success = true, content = fileContent });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error reading file content for path: {FilePath}", filePath);
+                return Json(new { success = false, message = "Đã xảy ra lỗi khi đọc nội dung file: " + ex.Message });
+            }
+        }
+
+        [HttpGet]
+        public IActionResult GetCombinedFileContent(string oraclePath, string postgresPath, string fileName)
+        {
+            try
+            {
+                string oracleFilePath = Path.Combine(oraclePath, fileName);
+                string postgresFilePath = Path.Combine(postgresPath, fileName);
+
+                if (!System.IO.File.Exists(oracleFilePath) || !System.IO.File.Exists(postgresFilePath))
+                {
+                    return Json(new { success = false, message = "Không tìm thấy cả hai file Oracle và Postgres." });
+                }
+
+                // Read content of both files with UTF-8 encoding
+                string oracleContent = System.IO.File.ReadAllText(oracleFilePath, System.Text.Encoding.UTF8);
+                string postgresContent = System.IO.File.ReadAllText(postgresFilePath, System.Text.Encoding.UTF8);
+
+                // Combine content (you can customize the format here if needed)
+                string combinedContent = $"Oracle Content:\n{oracleContent}\n\nPostgres Content:\n{postgresContent}";
+
+                return Json(new { success = true, content = combinedContent });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting combined file content for file: {FileName}", fileName);
+                return Json(new { success = false, message = "Đã xảy ra lỗi khi lấy nội dung kết hợp: " + ex.Message });
+            }
+        }
+
         public IActionResult Privacy()
         {
             return View();

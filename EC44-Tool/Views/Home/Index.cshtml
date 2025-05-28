@@ -17,17 +17,11 @@
                             <label for="oraclePath" class="form-label">Đường dẫn Oracle</label>
                             <input type="text" class="form-control" id="oraclePath" name="oraclePath" placeholder="Nhập đường dẫn folder Oracle">
                         </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="mb-3">
+                         <div class="mb-3">
                             <label for="postgresPath" class="form-label">Đường dẫn Postgres</label>
                             <input type="text" class="form-control" id="postgresPath" name="postgresPath" placeholder="Nhập đường dẫn folder Postgres">
                         </div>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="mb-3">
+                         <div class="mb-3">
                             <label for="imagePath" class="form-label">Đường dẫn hình ảnh</label>
                             <input type="text" class="form-control" id="imagePath" name="imagePath" placeholder="Nhập đường dẫn folder hình ảnh">
                         </div>
@@ -35,7 +29,11 @@
                      <div class="col-md-6">
                         <div class="mb-3">
                             <label for="nameList" class="form-label">Danh sách tên file</label>
-                            <textarea class="form-control" id="nameList" name="nameList" rows="3" placeholder="Nhập danh sách tên file, mỗi tên một dòng"></textarea>
+                            <textarea class="form-control" id="nameList" name="nameList" rows="4" placeholder="Nhập danh sách tên file, mỗi tên một dòng"></textarea>
+                        </div>
+                         <div class="mb-3">
+                            <label for="promptTextarea" class="form-label">Prompt</label>
+                            <textarea class="form-control" id="promptTextarea" name="promptTextarea" rows="4" placeholder="Nhập prompt ở đây"></textarea>
                         </div>
                     </div>
                 </div>
@@ -70,6 +68,7 @@
                         <tr>
                             <th>Tên file</th>
                             <th>Trạng thái</th>
+                             <th>Thao tác</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -96,6 +95,7 @@
             localStorage.setItem('imagePath', $('#imagePath').val());
             localStorage.setItem('nameList', $('#nameList').val());
             localStorage.setItem('filter', $('#filter').val());
+             localStorage.setItem('promptTextarea', $('#promptTextarea').val());
         }
 
         function loadSettings() {
@@ -104,6 +104,7 @@
             const savedImagePath = localStorage.getItem('imagePath');
             const savedNameList = localStorage.getItem('nameList');
             const savedFilter = localStorage.getItem('filter');
+            const savedPromptTextarea = localStorage.getItem('promptTextarea');
 
             if (savedOraclePath) {
                 $('#oraclePath').val(savedOraclePath);
@@ -119,6 +120,9 @@
             }
             if (savedFilter) {
                 $('#filter').val(savedFilter);
+            }
+             if (savedPromptTextarea !== null) { // Check for null explicitly to allow empty string
+                $('#promptTextarea').val(savedPromptTextarea);
             }
         }
 
@@ -141,15 +145,72 @@
                         <tr>
                             <td>${file.fileName}</td>
                             <td class="${statusClass}">${statusText}</td>
+                            <td>
+                                <button class="btn btn-sm btn-secondary copy-content-btn" data-filepath="${file.filePath}">Copy Content</button>
+                                <button class="btn btn-sm btn-primary copy-prompt-btn" data-filepath="${file.filePath}">Copy Prompt</button>
+                                ${file.status === 1 ? `<button class="btn btn-sm btn-info merge-btn" data-filename="${file.fileName}">Merge</button>` : ''}
+                            </td>
                         </tr>
                     `);
                 });
             } else {
                 tbodyFileTable.append(`
                     <tr>
-                        <td colspan="2" class="text-center">Không tìm thấy file nào phù hợp.</td>
+                        <td colspan="3" class="text-center">Không tìm thấy file nào phù hợp.</td>
                     </tr>
                 `);
+            }
+        }
+
+        async function copyToClipboard(text) {
+            try {
+                await navigator.clipboard.writeText(text);
+                console.log('Text copied to clipboard');
+                // Optionally, show a small success message to the user
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+                 alert('Không thể copy nội dung vào clipboard. Vui lòng kiểm tra quyền truy cập.');
+            }
+        }
+
+        async function getFileContent(filePath) {
+             try {
+                const response = await $.ajax({
+                    url: '@Url.Action("GetFileContent", "Home")',
+                    type: 'GET',
+                    data: { filePath: filePath }
+                });
+                if (response.success) {
+                    return response.content;
+                } else {
+                    alert('Lỗi khi đọc file: ' + response.message);
+                    return null;
+                }
+            } catch (err) {
+                 alert('Đã xảy ra lỗi khi gọi API đọc file.');
+                 return null;
+            }
+        }
+
+        async function getCombinedFileContent(fileName) {
+            const oraclePath = $('#oraclePath').val();
+            const postgresPath = $('#postgresPath').val();
+
+             try {
+                const response = await $.ajax({
+                    url: '@Url.Action("GetCombinedFileContent", "Home")',
+                    type: 'GET',
+                    data: { oraclePath: oraclePath, postgresPath: postgresPath, fileName: fileName }
+                });
+                if (response.success) {
+                    return response.content;
+                } else {
+                    alert('Lỗi khi lấy nội dung kết hợp: ' + response.message);
+                    return null;
+                }
+            } catch (err) {
+                 alert('Đã xảy ra lỗi khi gọi API lấy nội dung kết hợp.');
+                 return null;
             }
         }
 
@@ -191,12 +252,72 @@
         }
 
         $(document).ready(function() {
-            // Load settings on page load
             loadSettings();
 
-            // Attach event listeners
             $('#setupHeader').on('click', toggleSetup);
             $('#showFilesButton').on('click', showFiles);
+
+            // Event listener for Copy Content buttons
+            $('#fileTable tbody').on('click', '.copy-content-btn', async function() {
+                const filePath = $(this).data('filepath');
+                const fileContent = await getFileContent(filePath);
+                if (fileContent !== null) {
+                    copyToClipboard(fileContent);
+                }
+            });
+
+            // Event listener for Copy Prompt buttons
+             $('#fileTable tbody').on('click', '.copy-prompt-btn', async function() {
+                const filePath = $(this).data('filepath');
+                const prompt = $('#promptTextarea').val();
+                const fileContent = await getFileContent(filePath);
+                if (fileContent !== null) {
+                    const contentToCopy = prompt + '\n' + fileContent;
+                    copyToClipboard(contentToCopy);
+                }
+            });
+
+            // Event listener for Merge buttons
+            $('#fileTable tbody').on('click', '.merge-btn', async function() {
+                const fileName = $(this).data('filename');
+                const combinedContent = await getCombinedFileContent(fileName);
+                if (combinedContent !== null) {
+                    $('#mergeModalBodyTextarea').val(combinedContent);
+                    $('#mergeModal').modal('show');
+                }
+            });
+
+            // Event listener for Cancel button in Modal
+            $('#mergeModal .btn-secondary').on('click', function() {
+                $('#mergeModal').modal('hide');
+            });
+
+            // Event listener for Save button in Modal (placeholder for now)
+            $('#mergeModal .btn-primary').on('click', function() {
+                alert('Save functionality not implemented yet.');
+                // Implement save logic here later
+                // $('#mergeModal').modal('hide');
+            });
+
         });
     </script>
+
+    <!-- Merge Modal -->
+    <div class="modal fade" id="mergeModal" tabindex="-1" aria-labelledby="mergeModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="mergeModalLabel">Nội dung kết hợp</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <textarea id="mergeModalBodyTextarea" class="form-control" rows="20"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
 }
