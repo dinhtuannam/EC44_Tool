@@ -2,6 +2,27 @@
     ViewData["Title"] = "EC44 Tool";
 }
 
+<style>
+    .file-details-row {
+        display: none;
+    }
+     .image-paste-area {
+        border: 2px dashed #ccc;
+        padding: 20px;
+        text-align: center;
+        cursor: pointer;
+        min-height: 100px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+    }
+    .image-paste-area img {
+        max-width: 100%;
+        max-height: 200px; /* Adjust as needed */
+    }
+</style>
+
 <div class="container-fluid mt-4">
     <!-- Thiết lập Section -->
     <div class="card shadow mb-4">
@@ -81,6 +102,9 @@
 
 @section Scripts {
     <script>
+        // Store file content temporarily
+        let fileContentCache = {};
+
         function toggleSetup() {
             const setupBody = $('#setupBody');
             const toggleIcon = $('#setupToggle');
@@ -126,12 +150,13 @@
             }
         }
 
-        function renderFileListTable(fileList) {
+        async function renderFileListTable(fileList) {
             const tbodyFileTable = $('#fileTable tbody');
             tbodyFileTable.empty();
+            fileContentCache = {}; // Clear cache
 
             if (fileList && fileList.length > 0) {
-                fileList.forEach(function(file) {
+                for (const file of fileList) { // Use for...of for async/await inside loop
                     let statusText = '';
                     if (file.status === 0) { // Assuming 0 corresponds to ChuaLam
                         statusText = 'Chưa làm';
@@ -141,18 +166,36 @@
 
                     const statusClass = file.status === 1 ? 'text-success' : 'text-danger';
 
+                    // Main file row
                     tbodyFileTable.append(`
-                        <tr>
+                        <tr data-filename="${file.fileName}">
                             <td>${file.fileName}</td>
-                            <td class="${statusClass}">${statusText}</td>
+                            <td class="file-status ${statusClass}">${statusText}</td>
                             <td>
                                 <button class="btn btn-sm btn-secondary copy-content-btn" data-filepath="${file.filePath}">Copy Content</button>
                                 <button class="btn btn-sm btn-primary copy-prompt-btn" data-filepath="${file.filePath}">Copy Prompt</button>
-                                ${file.status === 1 ? `<button class="btn btn-sm btn-info merge-btn" data-filename="${file.fileName}">Merge</button>` : ''}
+                                <button class="btn btn-sm btn-secondary toggle-details-btn">Edit</button>
+                            </td>
+                        </tr>
+                        <tr class="file-details-row" data-filename="${file.fileName}">
+                            <td colspan="3">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6>Nội dung file Postgres</h6>
+                                        <textarea class="form-control postgres-content-textarea" rows="10" data-filename="${file.fileName}"></textarea>
+                                    </div>
+                                    <div class="col-md-6">
+                                         <h6>Paste hình ảnh tại đây</h6>
+                                         <div class="image-paste-area" data-filename="${file.fileName}">
+                                            Nhấn Ctrl+V để paste hình ảnh
+                                         </div>
+                                          <button class="btn btn-success btn-sm mt-2 save-file-btn" data-filename="${file.fileName}">Lưu</button>
+                                    </div>
+                                </div>
                             </td>
                         </tr>
                     `);
-                });
+                }
             } else {
                 tbodyFileTable.append(`
                     <tr>
@@ -173,6 +216,55 @@
             }
         }
 
+         async function getPostgresFileContent(fileName) {
+            const postgresPath = $('#postgresPath').val();
+             try {
+                const response = await $.ajax({
+                    url: '@Url.Action("GetPostgresFileContent", "Home")',
+                    type: 'GET',
+                    data: { postgresPath: postgresPath, fileName: fileName }
+                });
+                if (response.success) {
+                    return response.content;
+                } else {
+                    // If file doesn't exist, return empty string, otherwise show error
+                     if (response.message && response.message.includes('không tồn tại')){
+                          return '';
+                     } else {
+                         alert('Lỗi khi đọc file Postgres: ' + response.message);
+                         return null;
+                     }
+                }
+            } catch (err) {
+                 alert('Đã xảy ra lỗi khi gọi API đọc file Postgres.');
+                 return null;
+            }
+        }
+
+        async function saveFileAndImage(fileName, fileContent, imageData) {
+             const postgresPath = $('#postgresPath').val();
+             const imagePath = $('#imagePath').val();
+
+             try {
+                const response = await $.ajax({
+                    url: '@Url.Action("SaveFileAndImage", "Home")',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                         fileName: fileName,
+                         fileContent: fileContent,
+                         imageData: imageData,
+                         postgresPath: postgresPath,
+                         imagePath: imagePath
+                    })
+                });
+                return response; // { success: bool, message: string, newStatus: enum_value }
+            } catch (err) {
+                 alert('Đã xảy ra lỗi khi gọi API lưu file.');
+                 return { success: false, message: 'Lỗi kết nối hoặc server.' };
+            }
+        }
+
         async function getFileContent(filePath) {
              try {
                 const response = await $.ajax({
@@ -183,33 +275,11 @@
                 if (response.success) {
                     return response.content;
                 } else {
-                    alert('Lỗi khi đọc file: ' + response.message);
+                    alert('Lỗi khi đọc file Oracle: ' + response.message);
                     return null;
                 }
             } catch (err) {
-                 alert('Đã xảy ra lỗi khi gọi API đọc file.');
-                 return null;
-            }
-        }
-
-        async function getCombinedFileContent(fileName) {
-            const oraclePath = $('#oraclePath').val();
-            const postgresPath = $('#postgresPath').val();
-
-             try {
-                const response = await $.ajax({
-                    url: '@Url.Action("GetCombinedFileContent", "Home")',
-                    type: 'GET',
-                    data: { oraclePath: oraclePath, postgresPath: postgresPath, fileName: fileName }
-                });
-                if (response.success) {
-                    return response.content;
-                } else {
-                    alert('Lỗi khi lấy nội dung kết hợp: ' + response.message);
-                    return null;
-                }
-            } catch (err) {
-                 alert('Đã xảy ra lỗi khi gọi API lấy nội dung kết hợp.');
+                 alert('Đã xảy ra lỗi khi gọi API đọc file Oracle.');
                  return null;
             }
         }
@@ -257,52 +327,128 @@
             $('#setupHeader').on('click', toggleSetup);
             $('#showFilesButton').on('click', showFiles);
 
-            // Event listener for Copy Content buttons
+            // Event listener for Copy Content buttons (delegated)
             $('#fileTable tbody').on('click', '.copy-content-btn', async function() {
-                const filePath = $(this).data('filepath');
-                const fileContent = await getFileContent(filePath);
+                 const filePath = $(this).data('filepath'); // This is Oracle path
+                const fileContent = await getFileContent(filePath); // Use getFileContent for Oracle
                 if (fileContent !== null) {
                     copyToClipboard(fileContent);
                 }
             });
 
-            // Event listener for Copy Prompt buttons
+            // Event listener for Copy Prompt buttons (delegated)
              $('#fileTable tbody').on('click', '.copy-prompt-btn', async function() {
-                const filePath = $(this).data('filepath');
+                 const filePath = $(this).data('filepath'); // This is Oracle path
                 const prompt = $('#promptTextarea').val();
-                const fileContent = await getFileContent(filePath);
+                const fileContent = await getFileContent(filePath); // Use getFileContent for Oracle
                 if (fileContent !== null) {
                     const contentToCopy = prompt + '\n' + fileContent;
                     copyToClipboard(contentToCopy);
                 }
             });
 
-            // Event listener for Merge buttons
-            $('#fileTable tbody').on('click', '.merge-btn', async function() {
-                const fileName = $(this).data('filename');
-                const combinedContent = await getCombinedFileContent(fileName);
-                if (combinedContent !== null) {
-                    $('#mergeModalBodyTextarea').val(combinedContent);
-                    $('#mergeModal').modal('show');
+            // Event listener for Toggle Details buttons (delegated)
+            $('#fileTable tbody').on('click', '.toggle-details-btn', async function() {
+                const btn = $(this);
+                const row = btn.closest('tr');
+                const detailsRow = row.next('.file-details-row');
+                const fileName = row.data('filename');
+                const textarea = detailsRow.find('.postgres-content-textarea');
+                const pasteArea = detailsRow.find('.image-paste-area');
+
+                if (detailsRow.is(':visible')) {
+                    // Hide the details row
+                    detailsRow.slideUp();
+                     btn.text('Edit');
+                } else {
+                    // Show the details row
+                     btn.text('Hide');
+                    detailsRow.slideDown(async function() {
+                         // Load content only if textarea is empty (first time opening)
+                        if (textarea.val() === '') {
+                              const fileContent = await getPostgresFileContent(fileName);
+                              if (fileContent !== null) {
+                                   textarea.val(fileContent);
+                              }
+                        }
+                    });
                 }
             });
 
-            // Event listener for Cancel button in Modal
-            $('#mergeModal .btn-secondary').on('click', function() {
-                $('#mergeModal').modal('hide');
+            // Event listener for Paste Image area (delegated)
+            $('#fileTable tbody').on('paste', '.image-paste-area', function(event) {
+                 const items = (event.clipboardData || event.originalEvent.clipboardData).items;
+                let imageFound = false;
+                for (const item of items) {
+                    if (item.type.indexOf('image') === 0) {
+                        imageFound = true;
+                        const blob = item.getAsFile();
+                        const reader = new FileReader();
+                        reader.onload = function(event){
+                            // Store the base64 string in a data attribute or cache
+                            const base64data = event.target.result;
+                            // You might want to store this base64 string somewhere accessible for the Save button
+                            // For simplicity, let's add an img tag to the paste area and store base64 in its data attribute
+                            const img = $('<img>').attr('src', base64data).addClass('pasted-image');
+                             // Clear previous image
+                            $(event.target).empty().append(img);
+                            // Store base64 on the image element itself or the paste area div
+                            $(event.target).data('base64image', base64data);
+                        };
+                        reader.readAsDataURL(blob);
+                        break;
+                    }
+                }
+                if (!imageFound) {
+                     // Optional: Provide feedback if no image was pasted
+                     // alert('Không tìm thấy hình ảnh trong clipboard.');
+                     $(event.target).html('Không tìm thấy hình ảnh trong clipboard.');
+                }
+                 // Prevent the default paste behavior (like pasting text into the div)
+                 event.preventDefault();
             });
 
-            // Event listener for Save button in Modal (placeholder for now)
-            $('#mergeModal .btn-primary').on('click', function() {
-                alert('Save functionality not implemented yet.');
-                // Implement save logic here later
-                // $('#mergeModal').modal('hide');
+             // Event listener for Save buttons (delegated)
+            $('#fileTable tbody').on('click', '.save-file-btn', async function() {
+                const btn = $(this);
+                const detailsRow = btn.closest('.file-details-row');
+                const mainRow = detailsRow.prev('tr');
+                const fileName = detailsRow.data('filename');
+                const fileContent = detailsRow.find('.postgres-content-textarea').val();
+                const imageData = detailsRow.find('.image-paste-area').data('base64image'); // Get base64 data
+
+                 btn.text('Đang lưu...').prop('disabled', true);
+
+                const result = await saveFileAndImage(fileName, fileContent, imageData);
+
+                if (result.success) {
+                    alert('Lưu thành công!' + (result.message ? ' ' + result.message : ''));
+                    // Update status in the main file table if new status is returned
+                    if (result.newStatus !== undefined && result.newStatus !== null) {
+                        const statusCell = mainRow.find('.file-status');
+                        let newStatusText = '';
+                         let statusClass = '';
+                        if (result.newStatus === 0) {
+                             newStatusText = 'Chưa làm';
+                             statusClass = 'text-danger';
+                        } else if (result.newStatus === 1) {
+                             newStatusText = 'Đã làm';
+                             statusClass = 'text-success';
+                        }
+                         statusCell.text(newStatusText).removeClass('text-success text-danger').addClass(statusClass);
+                    }
+                     btn.text('Lưu').prop('disabled', false);
+                } else {
+                    alert('Lưu thất bại: ' + result.message);
+                     btn.text('Lưu').prop('disabled', false);
+                }
             });
 
         });
     </script>
 
-    <!-- Merge Modal -->
+    <!-- Keep Merge Modal structure if still needed for other purposes, otherwise remove -->
+    @* 
     <div class="modal fade" id="mergeModal" tabindex="-1" aria-labelledby="mergeModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -320,4 +466,5 @@
             </div>
         </div>
     </div>
+     *@
 }
