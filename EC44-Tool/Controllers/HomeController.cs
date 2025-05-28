@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Collections.Generic;
 
 namespace EC44_Tool.Controllers
 {
@@ -31,49 +32,71 @@ namespace EC44_Tool.Controllers
                     return Json(new { success = false, message = "Vui lòng nhập đầy đủ đường dẫn Oracle và Postgres" });
                 }
 
-                var oracleFiles = Directory.GetFiles(oraclePath, "*.txt")
-                    .Select(Path.GetFileName)
-                    .ToList();
+                var oracleFiles = GetTxtFileNames(oraclePath);
+                var postgresFiles = GetTxtFileNames(postgresPath);
 
-                var postgresFiles = Directory.GetFiles(postgresPath, "*.txt")
-                    .Select(Path.GetFileName)
-                    .ToList();
+                var desiredNames = ParseNameList(nameList);
 
-                var desiredNames = string.IsNullOrEmpty(nameList) ? new List<string>() : nameList.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+                var filteredOracleFiles = FilterFilesByBaseName(oracleFiles, desiredNames);
 
-                var fileList = oracleFiles
-                    .Where(file => 
-                    {
-                        if (desiredNames.Any())
-                        {
-                            var baseName = GetBaseFileName(file);
-                            return desiredNames.Any(name => name.Equals(baseName, StringComparison.OrdinalIgnoreCase));
-                        }
-                        // If nameList is empty, include all files from oraclePath
-                        return true;
-                    })
-                    .Select(file => new FileListModel
-                {
-                    FileName = file,
-                    Status = postgresFiles.Contains(file) ? "Đã làm" : "Chưa làm"
-                }).ToList();
+                var fileList = CreateFileListModels(filteredOracleFiles, postgresFiles, oraclePath);
 
                 if (!string.IsNullOrEmpty(filter))
                 {
-                    fileList = fileList.Where(f => f.Status == filter).ToList();
+                    fileList = fileList.Where(f => f.Status.ToString().Equals(filter, StringComparison.OrdinalIgnoreCase)).ToList();
                 }
 
                 return Json(new { success = true, data = fileList });
             }
             catch (Exception ex)
             {
-                return Json(new { success = false, message = ex.Message });
+                _logger.LogError(ex, "Error getting file list.");
+                return Json(new { success = false, message = "Đã xảy ra lỗi khi xử lý yêu cầu: " + ex.Message });
             }
+        }
+
+        private List<string> GetTxtFileNames(string directoryPath)
+        {
+            if (Directory.Exists(directoryPath))
+            {
+                return Directory.GetFiles(directoryPath, "*.txt")
+                                .Select(Path.GetFileName)
+                                .ToList();
+            }
+            return new List<string>();
+        }
+
+        private List<string> ParseNameList(string nameList)
+        {
+            return string.IsNullOrEmpty(nameList) ? new List<string>() : nameList.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+        }
+
+        private List<string> FilterFilesByBaseName(List<string> fileNames, List<string> desiredNames)
+        {
+            if (!desiredNames.Any())
+            {
+                return fileNames; // If no desired names, return all files
+            }
+
+            return fileNames.Where(file => 
+            {
+                var baseName = GetBaseFileName(file);
+                return desiredNames.Any(name => name.Equals(baseName, StringComparison.OrdinalIgnoreCase));
+            }).ToList();
+        }
+
+         private List<FileListModel> CreateFileListModels(List<string> oracleFiles, List<string> postgresFiles, string oraclePath)
+        {
+             return oracleFiles.Select(file => new FileListModel
+            {
+                FileName = file,
+                Status = postgresFiles.Contains(file) ? FileStatus.DaLam : FileStatus.ChuaLam,
+                FilePath = Path.Combine(oraclePath, file)
+            }).ToList();
         }
 
         private string GetBaseFileName(string fileName)
         {
-            // Use regex to extract the base name (part before the first _ followed by a digit)
             var match = Regex.Match(fileName, @"^(.*?)(_\d+|_txt)", RegexOptions.IgnoreCase);
             return match.Success ? match.Groups[1].Value : Path.GetFileNameWithoutExtension(fileName);
         }

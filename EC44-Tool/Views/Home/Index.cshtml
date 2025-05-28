@@ -122,13 +122,50 @@
             }
         }
 
+        function renderFileListTable(fileList) {
+            const tbodyFileTable = $('#fileTable tbody');
+            tbodyFileTable.empty();
+
+            if (fileList && fileList.length > 0) {
+                fileList.forEach(function(file) {
+                    let statusText = '';
+                    if (file.status === 0) { // Assuming 0 corresponds to ChuaLam
+                        statusText = 'Chưa làm';
+                    } else if (file.status === 1) { // Assuming 1 corresponds to DaLam
+                        statusText = 'Đã làm';
+                    }
+
+                    const statusClass = file.status === 1 ? 'text-success' : 'text-danger';
+
+                    tbodyFileTable.append(`
+                        <tr>
+                            <td>${file.fileName}</td>
+                            <td class="${statusClass}">${statusText}</td>
+                        </tr>
+                    `);
+                });
+            } else {
+                tbodyFileTable.append(`
+                    <tr>
+                        <td colspan="2" class="text-center">Không tìm thấy file nào phù hợp.</td>
+                    </tr>
+                `);
+            }
+        }
+
         function showFiles() {
             const oraclePath = $('#oraclePath').val();
             const postgresPath = $('#postgresPath').val();
             const nameList = $('#nameList').val();
-            const filter = $('#filter').val();
 
-            // Save settings before making the AJAX call
+            const filterValue = $('#filter').val();
+            let filter = '';
+            if (filterValue === 'Đã làm') {
+                filter = 'DaLam';
+            } else if (filterValue === 'Chưa làm') {
+                filter = 'ChuaLam';
+            }
+
             saveSettings();
 
             $.ajax({
@@ -142,27 +179,7 @@
                 },
                 success: function(response) {
                     if (response.success) {
-                        const tbody = $('#fileTable tbody');
-                        tbody.empty();
-                        
-                        if (response.data && response.data.length > 0) {
-                             response.data.forEach(function(file) {
-                                const statusClass = file.status === 'Đã làm' ? 'text-success' : 'text-danger';
-                                tbody.append(`
-                                    <tr>
-                                        <td>${file.fileName}</td>
-                                        <td class="${statusClass}">${file.status}</td>
-                                    </tr>
-                                `);
-                            });
-                        } else {
-                             tbody.append(`
-                                <tr>
-                                    <td colspan="2" class="text-center">Không tìm thấy file nào phù hợp.</td>
-                                </tr>
-                            `);
-                        }
-
+                        renderFileListTable(response.data);
                     } else {
                         alert(response.message);
                     }
