@@ -1,0 +1,148 @@
+@{
+    ViewData["Title"] = "Đếm File";
+}
+
+<div class="container-fluid mt-4">
+    <div class="card shadow">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Đếm File</h5>
+        </div>
+        <div class="card-body">
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <label for="folderPath" class="form-label">Đường dẫn folder</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="folderPath" placeholder="Nhập đường dẫn folder">
+                    </div>
+                </div>
+                 <div class="col-md-3">
+                    <label for="filterPrefix" class="form-label">Lọc tiền tố</label>
+                     <input type="text" class="form-control" id="filterPrefix" placeholder="Nhập tiền tố">
+                </div>
+                 <div class="col-md-3">
+                     <label for="sortBy" class="form-label">Sắp xếp theo</label>
+                     <select class="form-select" id="sortBy">
+                         <option value="prefix">Tiền tố</option>
+                         <option value="count">Số lượng file</option>
+                     </select>
+                 </div>
+                  <div class="col-md-2">
+                     <label for="sortOrder" class="form-label">Thứ tự</label>
+                     <select class="form-select" id="sortOrder">
+                         <option value="asc">Tăng dần</option>
+                         <option value="desc">Giảm dần</option>
+                     </select>
+                 </div>
+            </div>
+
+             <div class="row mb-4">
+                <div class="col-md-12 text-end">
+                    <button class="btn btn-primary" type="button" id="showButton">Hiển thị</button>
+                </div>
+             </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover" id="fileCountTable">
+                    <thead>
+                        <tr>
+                            <th>Tiền tố</th>
+                            <th>Số lượng file</th>
+                            <th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- File List Modal -->
+<div class="modal fade" id="fileListModal" tabindex="-1" aria-labelledby="fileListModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="fileListModalLabel">Danh sách file</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <ul class="list-group" id="fileList">
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function() {
+            $('#showButton').click(function() {
+                const folderPath = $('#folderPath').val();
+                const filterPrefix = $('#filterPrefix').val();
+                const sortBy = $('#sortBy').val();
+                const sortOrder = $('#sortOrder').val();
+                
+                $.ajax({
+                    url: '@Url.Action("GetFileCount", "Counter")',
+                    type: 'POST',
+                    data: {
+                         folderPath: folderPath,
+                         filterPrefix: filterPrefix,
+                         sortBy: sortBy,
+                         sortOrder: sortOrder
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            const tbody = $('#fileCountTable tbody');
+                            tbody.empty();
+                            
+                            response.data.forEach(function(item) {
+                                tbody.append(`
+                                    <tr>
+                                        <td>${item.prefix}</td>
+                                        <td>${item.count}</td>
+                                        <td>
+                                            <button class="btn btn-sm btn-info text-white view-files-btn" 
+                                                    data-prefix="${item.prefix}"
+                                                    data-files='${JSON.stringify(item.files)}'>
+                                                Xem
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `);
+                            });
+                        } else {
+                            alert(response.message);
+                        }
+                    },
+                    error: function() {
+                        alert('Có lỗi xảy ra khi xử lý yêu cầu');
+                    }
+                });
+            });
+
+            // Event listener for View Files button
+            $('#fileCountTable').on('click', '.view-files-btn', function() {
+                const files = $(this).data('files');
+                const prefix = $(this).data('prefix');
+                
+                const fileList = $('#fileList');
+                fileList.empty();
+                
+                // Sort files by name before displaying in modal
+                files.sort((a, b) => a.localeCompare(b));
+
+                files.forEach(function(file) {
+                    fileList.append(`<li class="list-group-item">${file}</li>`);
+                });
+                
+                $('#fileListModalLabel').text(`Danh sách file - ${prefix}`);
+                $('#fileListModal').modal('show');
+            });
+        });
+    </script>
+} 
