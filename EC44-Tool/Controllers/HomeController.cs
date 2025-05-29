@@ -1,20 +1,20 @@
 using EC44_Tool.Models;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
-using System.IO;
-using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
-using System.Collections.Generic;
-using System;
-
+using Ude;
 namespace EC44_Tool.Controllers
 {
     public class HomeController : Controller
     {
         private readonly ILogger<HomeController> _logger;
+        private System.Text.Encoding SHIFT_JIS;
 
         public HomeController(ILogger<HomeController> logger)
         {
+            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+            SHIFT_JIS = System.Text.Encoding.GetEncoding("shift_jis");
             _logger = logger;
         }
 
@@ -74,8 +74,8 @@ namespace EC44_Tool.Controllers
                     return Json(new { success = true, content = "", message = "File không tồn tại trong thư mục Postgres." });
                 }
 
-                // Read the file content, specifically handling UTF-8 for Japanese characters
-                string fileContent = System.IO.File.ReadAllText(filePath, System.Text.Encoding.UTF8);
+                Encoding encoding = DetectEncoding(filePath);
+                string fileContent = System.IO.File.ReadAllText(filePath, encoding);
 
                 return Json(new { success = true, content = fileContent });
             }
@@ -101,7 +101,7 @@ namespace EC44_Tool.Controllers
                 // Ensure directory exists
                 Directory.CreateDirectory(request.PostgresPath);
                 // Write content, creating file if it doesn't exist, overwriting if it does
-                System.IO.File.WriteAllText(postgresFilePath, request.FileContent, System.Text.Encoding.UTF8);
+                System.IO.File.WriteAllText(postgresFilePath, request.FileContent, SHIFT_JIS);
 
                 // --- Save Image File (if provided) ---
                 string imageMessage = "";
@@ -148,6 +148,24 @@ namespace EC44_Tool.Controllers
             {
                 _logger.LogError(ex, "Error saving file and image for file: {FileName}", request.FileName);
                 return Json(new { success = false, message = "Đã xảy ra lỗi khi lưu file: " + ex.Message });
+            }
+        }
+
+        private Encoding DetectEncoding(string filename)
+        {
+            using (var fs = System.IO.File.OpenRead(filename))
+            {
+                CharsetDetector detector = new CharsetDetector();
+                detector.Feed(fs);
+                detector.DataEnd();
+                if (detector.Charset != null)
+                {
+                    return Encoding.GetEncoding(detector.Charset);
+                }
+                else
+                {
+                    return SHIFT_JIS;
+                }
             }
         }
 
@@ -207,7 +225,7 @@ namespace EC44_Tool.Controllers
             return match.Success ? match.Groups[1].Value : Path.GetFileNameWithoutExtension(fileName);
         }
 
-         [HttpGet]
+        [HttpGet]
         public IActionResult GetFileContent(string filePath)
         {
             try
@@ -217,8 +235,8 @@ namespace EC44_Tool.Controllers
                     return Json(new { success = false, message = "Đường dẫn file Oracle không hợp lệ hoặc file không tồn tại." });
                 }
 
-                // Read the file content, specifically handling UTF-8 for Japanese characters
-                string fileContent = System.IO.File.ReadAllText(filePath, System.Text.Encoding.UTF8);
+                Encoding encoding = DetectEncoding(filePath);
+                string fileContent = System.IO.File.ReadAllText(filePath, encoding);
 
                 return Json(new { success = true, content = fileContent });
             }
