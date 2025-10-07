@@ -27,6 +27,20 @@
                 <h6>Method source</h6>
                 <pre id="methodBox" class="bg-light p-3" style="max-height: 40vh; overflow: auto;"></pre>
             </div>
+            <div class="mt-3">
+                <h6>Parameter usages ("?")</h6>
+                <table class="table table-bordered table-sm">
+                    <thead>
+                        <tr>
+                            <th style="width:80px">#</th>
+                            <th>Text</th>
+                            <th>Param</th>
+                            <th>Type</th>
+                        </tr>
+                    </thead>
+                    <tbody id="paramTableBody"></tbody>
+                </table>
+            </div>
         </div>
     </div>
     
@@ -49,9 +63,22 @@
                         if(resp && resp.success){
                             $('#resultBox').text(JSON.stringify(resp.data, null, 2));
                             $('#methodBox').text(resp.methodSource || '');
+                            const tbody = $('#paramTableBody');
+                            tbody.empty();
+                            if (resp.paramUsages && resp.paramUsages.length){
+                                resp.paramUsages.forEach(function(item){
+                                    const tr = $('<tr>');
+                                    tr.append($('<td>').text(item.index));
+                                    tr.append($('<td>').text(item.text));
+                                    tr.append($('<td>').text(item.param || ''));
+                                    tr.append($('<td>').text(item.type || ''));
+                                    tbody.append(tr);
+                                });
+                            }
                         } else {
                             $('#resultBox').text(resp && resp.message ? resp.message : 'Unknown error');
                             $('#methodBox').text('');
+                            $('#paramTableBody').empty();
                         }
                     },
                     error: function(){
