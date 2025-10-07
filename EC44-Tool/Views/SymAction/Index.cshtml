@@ -48,6 +48,7 @@
                             <th>Text</th>
                             <th>Param</th>
                             <th>Type</th>
+                            <th style="width:80px">Check</th>
                             <th style="width:140px">Action</th>
                         </tr>
                     </thead>
@@ -102,28 +103,45 @@
                                     const tr = $('<tr>');
                                     if (item.isReplace === false) {
                                         tr.addClass('table-warning'); // light highlight for non-replaced rows
+                                        tr.data('hadWarning', true);
                                     }
                                     tr.append($('<td>').text(item.index));
                                     tr.append($('<td>').text(item.text));
                                     tr.append($('<td>').text(item.param || ''));
                                     tr.append($('<td>').text(item.type || ''));
+                                    const checkTd = $('<td>');
+                                    const chk = $('<input type="checkbox" class="form-check-input">');
+                                    chk.on('change', function(){
+                                        if (this.checked) {
+                                            tr.removeClass('table-warning').addClass('table-success');
+                                        } else {
+                                            tr.removeClass('table-success');
+                                            if (tr.data('hadWarning')) {
+                                                tr.addClass('table-warning');
+                                            }
+                                        }
+                                    });
+                                    checkTd.append(chk);
                                     const actionTd = $('<td>');
                                     if (item.isReplace) {
                                         const btn = $('<button type="button" class="btn btn-sm btn-outline-primary">Copy SQL</button>');
                                         btn.on('click', function(){
-                                            const m = /<([^>]+)>/.exec(item.text || '');
+                                            const m = /<([^>]+)>\.([A-Za-z0-9_]+)/.exec(item.text || '');
                                             if (!m) { return; }
+
                                             const tableName = m[1];
+                                            const columnName = m[2];
                                             const sql = "SELECT owner, object_name, object_type\n" +
                                                         "FROM all_objects\n" +
                                                         "WHERE object_type = 'TABLE'\n" +
                                                         "  AND object_name = '" + tableName + "';\n"+
-                                                        "\n" +
+                                                        "------------------------------------\n" +
                                                         "SELECT owner, table_name, column_name, \n" +
                                                         "       data_type, data_length, nullable \n" +
                                                         "FROM dba_tab_columns \n" +
                                                         "WHERE table_name = '" + tableName + "' \n" +
-                                                        "      AND owner = '' \n" +
+                                                        "      AND column_name = TRIM('" + columnName + "') \n" +
+                                                        "   -- AND owner = TRIM('') \n" +
                                                         "ORDER BY owner, column_id;";
 
                                             if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -142,6 +160,7 @@
                                         });
                                         actionTd.append(btn);
                                     }
+                                    tr.append(checkTd);
                                     tr.append(actionTd);
                                     tbody.append(tr);
                                 });
