@@ -195,7 +195,11 @@ namespace EC44_Tool.Controllers
 				var text = string.Join(string.Empty, parts).Trim();
 				if (text.Contains("?"))
 				{
-					results.Add(new ParamUsage { Index = idx++, Text = text });
+					int qCount = Regex.Matches(text, "\\?").Count;
+					for (int k = 0; k < qCount; k++)
+					{
+						results.Add(new ParamUsage { Index = idx++, Text = text });
+					}
 				}
 			}
 
