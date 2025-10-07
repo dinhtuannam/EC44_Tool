@@ -167,6 +167,7 @@ namespace EC44_Tool.Controllers
 				// collect args of each append in this statement
 				var argRegex = new Regex(@"\.append\s*\((?<arg>[^)]*)\)");
 				var parts = new List<string>();
+				bool replacedInStatement = false;
 				foreach (Match m in argRegex.Matches(s))
 				{
 					var arg = m.Groups["arg"].Value.Trim();
@@ -183,6 +184,7 @@ namespace EC44_Tool.Controllers
 						var ident = arg;
 						if (constants.TryGetValue(ident, out var mapped))
 						{
+							replacedInStatement = true;
 							parts.Add($"<{mapped}>");
 						}
 						else
@@ -198,7 +200,7 @@ namespace EC44_Tool.Controllers
 					int qCount = Regex.Matches(text, "\\?").Count;
 					for (int k = 0; k < qCount; k++)
 					{
-						results.Add(new ParamUsage { Index = idx++, Text = text });
+						results.Add(new ParamUsage { Index = idx++, Text = text, IsReplace = replacedInStatement });
 					}
 				}
 			}
@@ -240,6 +242,7 @@ namespace EC44_Tool.Controllers
 			public string Text { get; set; }
 			public string Param { get; set; }
 			public string Type { get; set; }
+			public bool IsReplace { get; set; }
 		}
 	}
 }
