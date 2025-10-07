@@ -1,0 +1,65 @@
+﻿@{
+    ViewData["Title"] = "SymAction";
+}
+
+<div class="container-fluid mt-4">
+    <div class="card shadow">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0">SymAction</h5>
+        </div>
+        <div class="card-body">
+            <form id="symForm">
+                <div class="mb-3">
+                    <label for="filePath" class="form-label">File path</label>
+                    <input type="text" class="form-control" id="filePath" placeholder="Enter file path">
+                </div>
+                <div class="mb-3">
+                    <label for="methodName" class="form-label">Method name</label>
+                    <input type="text" class="form-control" id="methodName" placeholder="Enter method name">
+                </div>
+                <button type="button" id="runBtn" class="btn btn-primary">Run</button>
+            </form>
+            <div class="mt-3">
+                <h6>Constants</h6>
+                <pre id="resultBox" class="bg-light p-3" style="max-height: 40vh; overflow: auto;"></pre>
+            </div>
+            <div class="mt-3">
+                <h6>Method source</h6>
+                <pre id="methodBox" class="bg-light p-3" style="max-height: 40vh; overflow: auto;"></pre>
+            </div>
+        </div>
+    </div>
+    
+</div>
+
+@section Scripts {
+    <script>
+        $(function(){
+            $('#runBtn').on('click', function(){
+                const filePath = $('#filePath').val();
+                const methodName = $('#methodName').val();
+                $('#resultBox').text('Processing...');
+
+                $.ajax({
+                    url: '@Url.Action("ParseConstants", "SymAction")',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ filePath: filePath, methodName: methodName }),
+                    success: function(resp){
+                        if(resp && resp.success){
+                            $('#resultBox').text(JSON.stringify(resp.data, null, 2));
+                            $('#methodBox').text(resp.methodSource || '');
+                        } else {
+                            $('#resultBox').text(resp && resp.message ? resp.message : 'Unknown error');
+                            $('#methodBox').text('');
+                        }
+                    },
+                    error: function(){
+                        $('#resultBox').text('API call failed');
+                    }
+                });
+            });
+        });
+    </script>
+}
+
